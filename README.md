@@ -7,24 +7,24 @@ A production-grade **Task Management REST API** built with **FastAPI** and **Pos
 ##  Architecture Overview
 ```
                         ┌─────────────────────────────────────────┐
-                        │              GitHub Actions              │
+                        │              GitHub Actions             │
                         │  (CI/CD: lint → test → build → deploy)  │
                         └──────────────────┬──────────────────────┘
                                            │ push to main
                                            ▼
 ┌───────────┐     HTTPS      ┌─────────────────────┐
-│  Client   │ ─────────────► │   AWS ECS Fargate    │
-│ (Browser/ │                │  (Docker Container)  │
-│   curl)   │ ◄───────────── │    FastAPI + Uvicorn │
-└───────────┘                └──────────┬──────────┘
-                                        │
-                              ┌─────────▼──────────┐
-                              │    AWS RDS          │
-                              │  (PostgreSQL)       │
-                              └────────────────────┘
-
-             ┌─────────────────────────────────────┐
-             │         AWS ECR                     │
+│  Client   │ ─────────────► │   AWS ECS Fargate   │
+│ (Browser/ │                │  (Docker Container) │<---------|
+│   curl)   │ ◄───────────── │    FastAPI + Uvicorn│          |
+└───────────┘                └──────────┬──────────┘          |
+                                        │                     |
+                              ┌─────────▼──────────┐          |
+                              │    AWS RDS         │          |
+                              │  (PostgreSQL)      │          |
+                              └────────────────────┘          |
+                                                              |
+             ┌─────────────────────────────────────┐          |
+             │         AWS ECR                     │----------|
              │  (Docker image registry)            │
              └─────────────────────────────────────┘
 ```
@@ -73,7 +73,7 @@ A production-grade **Task Management REST API** built with **FastAPI** and **Pos
 │   └── test_api.py      # pytest async test suite
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml   # GitHub Actions CI/CD pipeline
+│       └── main.yml   # GitHub Actions CI/CD pipeline
 ├── Dockerfile
 ├── requirements.txt
 ├── pytest.ini
