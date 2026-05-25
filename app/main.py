@@ -11,23 +11,30 @@ import app.schema as schema
 from app.database import engine, get_db
 
 
+VALID_STATUSES = {"pending", "completed"}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Create tables on startup."""
     async with engine.begin() as conn:
         await conn.run_sync(model.Base.metadata.create_all)
+
     yield
+
     await engine.dispose()
-    
 
 
-app = FastAPI(title="Task Management API", lifespan=lifespan)
+app = FastAPI(
+    title="Task Management API",
+    lifespan=lifespan,
+)
 
 
 @app.get("/")
 async def home():
     """Root endpoint."""
-    return "Task manager API is running"
+    return {"message": "Task manager API is running"}
 
 
 @app.post(
@@ -58,9 +65,12 @@ async def create_task(
     response_model=List[schema.TaskResponse],
     status_code=200,
 )
-async def show_all(db: AsyncSession = Depends(get_db)):
+async def show_all(
+    db: AsyncSession = Depends(get_db),
+):
     """Fetch all tasks."""
     result = await db.execute(select(model.Task))
+
     return result.scalars().all()
 
 
@@ -104,13 +114,13 @@ async def update_task(
     )
     task = result.scalar_one_or_none()
 
-    if not task:
+    if task is None:
         raise HTTPException(
             status_code=404,
             detail="Task not found",
         )
 
-    if request_status.status not in ["pending", "completed"]:
+    if request_status.status not in VALID_STATUSES:
         raise HTTPException(
             status_code=422,
             detail="Status must be 'pending' or 'completed'",
@@ -125,7 +135,10 @@ async def update_task(
     return task
 
 
-@app.delete("/tasks/{task_id}", status_code=200)
+@app.delete(
+    "/tasks/{task_id}",
+    status_code=200,
+)
 async def delete_task(
     task_id: int,
     db: AsyncSession = Depends(get_db),
@@ -136,7 +149,7 @@ async def delete_task(
     )
     task = result.scalar_one_or_none()
 
-    if not task:
+    if task is None:
         raise HTTPException(
             status_code=404,
             detail="Task not found",
@@ -145,4 +158,8 @@ async def delete_task(
     await db.delete(task)
     await db.commit()
 
-    return {"message": f"Record id {task_id} deleted successfully"}
+    return {
+        "message": (
+            f"Record id {task_id} deleted successfully"
+        )
+    }
