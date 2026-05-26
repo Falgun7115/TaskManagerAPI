@@ -42,7 +42,7 @@ A production-grade **Task Management REST API** built with **FastAPI** and **Pos
 | Container Registry | **AWS ECR**                   | Native integration with ECS, secure image storage          |
 | Cloud Hosting  | **AWS ECS Fargate**               | Serverless containers, no EC2 management needed            |
 | CI/CD          | **GitHub Actions**                | Automated lint, test, build, and deploy on every push      |
-| Testing        | **pytest + pytest-asyncio**       | Supports asynchronous unit and integration testing with    |
+| Testing        | **pytest + pytest-asyncio**       | Supports asynchronous unit testing with isolated test execution|
 |                |                                   | isolated test execution                                    |
 | Linting        | **flake8**                        | Enforces code style and quality checks                     |
 
