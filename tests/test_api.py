@@ -4,11 +4,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import HTTPException
 
-os.environ["DATABASE_URL"] = (
-    "postgresql+asyncpg://test:test@localhost/test"
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql+asyncpg://test:test@localhost/test",
 )
 
-from app.main import ( 
+from app.main import (  
     create_task,
     delete_task,
     home,
@@ -28,7 +29,9 @@ async def test_home():
 
     response = await home()
 
-    assert response == "Task manager API is running"
+    assert response == {
+        "message": "Task manager API is running",
+    }
 
 
 @pytest.mark.asyncio
@@ -159,3 +162,4 @@ async def test_delete_task():
 
     mock_db.delete.assert_awaited_once()
     mock_db.commit.assert_awaited_once()
+    
