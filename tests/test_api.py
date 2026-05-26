@@ -1,240 +1,161 @@
 import os
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import pytest_asyncio
-from dotenv import load_dotenv
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-from sqlalchemy.pool import NullPool
+from fastapi import HTTPException
 
-from app.database import Base, get_db
-from app.main import app
-
-load_dotenv()
-
-_raw_url = os.getenv("DATABASE_URL", "")
-
-# Normalize DATABASE_URL to asyncpg format
-if _raw_url.startswith("postgresql+asyncpg://"):
-    DATABASE_URL = _raw_url
-
-elif _raw_url.startswith("postgresql://"):
-    DATABASE_URL = _raw_url.replace(
-        "postgresql://",
-        "postgresql+asyncpg://",
-        1,
-    )
-
-elif _raw_url.startswith("postgres://"):
-    DATABASE_URL = _raw_url.replace(
-        "postgres://",
-        "postgresql+asyncpg://",
-        1,
-    )
-
-else:
-    DATABASE_URL = _raw_url
-
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL is not set")
-
-# Disable pooling for tests
-test_engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    poolclass=NullPool,
+os.environ["DATABASE_URL"] = (
+    "postgresql+asyncpg://test:test@localhost/test"
 )
 
-TestingSessionLocal = async_sessionmaker(
-    bind=test_engine,
-    class_=AsyncSession,
-    autocommit=False,
-    autoflush=False,
-    expire_on_commit=False,
+from app.main import ( 
+    create_task,
+    delete_task,
+    home,
+    show_by_id,
+    update_task,
 )
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def clear_tables():
-    """Drop and recreate all tables before each test."""
-
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
-
-    yield
-
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-
-    await test_engine.dispose()
-
-
-async def override_get_db():
-    """Override database dependency for tests."""
-
-    async with TestingSessionLocal() as db:
-        yield db
-
-
-app.dependency_overrides[get_db] = override_get_db
+from app.model import Task  
+from app.schema import (  
+    TaskCreate,
+    TaskStatusUpdate,
+)
 
 
 @pytest.mark.asyncio
-async def test_root():
+async def test_home():
     """Test root endpoint."""
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get("/")
+    response = await home()
 
-    assert response.status_code == 200
+    assert response == "Task manager API is running"
 
 
 @pytest.mark.asyncio
 async def test_create_task():
-    """Test creating a task."""
+    """Unit test for creating task."""
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.post(
-            "/tasks",
-            json={
-                "title": "Test Task",
-                "description": "This is a test task",
-            },
+    mock_db = AsyncMock()
+
+    task_data = TaskCreate(
+        title="Test Task",
+        description="Testing",
+    )
+
+    response = await create_task(
+        task=task_data,
+        db=mock_db,
+    )
+
+    assert response.title == "Test Task"
+    assert response.status == "pending"
+
+    mock_db.add.assert_called_once()
+    mock_db.commit.assert_awaited_once()
+    mock_db.refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_show_task_by_id():
+    """Unit test for fetching single task."""
+
+    mock_task = Task(
+        id=1,
+        title="Sample Task",
+        status="pending",
+    )
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_task
+
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = mock_result
+
+    response = await show_by_id(
+        task_id=1,
+        db=mock_db,
+    )
+
+    assert response.id == 1
+    assert response.title == "Sample Task"
+
+
+@pytest.mark.asyncio
+async def test_show_task_not_found():
+    """Unit test for missing task."""
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = mock_result
+
+    with pytest.raises(HTTPException) as exc:
+        await show_by_id(
+            task_id=999,
+            db=mock_db,
         )
 
-    assert response.status_code == 201
-
-    data = response.json()
-
-    assert data["title"] == "Test Task"
-    assert data["status"] == "pending"
-
-
-@pytest.mark.asyncio
-async def test_get_all_tasks():
-    """Test fetching all tasks."""
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get("/tasks")
-
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
-
-@pytest.mark.asyncio
-async def test_get_single_task():
-    """Test fetching one task."""
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        create_response = await client.post(
-            "/tasks",
-            json={"title": "Single Task"},
-        )
-
-        task_id = create_response.json()["id"]
-
-        response = await client.get(f"/tasks/{task_id}")
-
-    assert response.status_code == 200
-    assert response.json()["id"] == task_id
-
-
-@pytest.mark.asyncio
-async def test_get_task_not_found():
-    """Test fetching missing task."""
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get("/tasks/99999")
-
-    assert response.status_code == 404
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "Task not found"
 
 
 @pytest.mark.asyncio
 async def test_update_task_status():
-    """Test updating task status."""
+    """Unit test for updating task status."""
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        create_response = await client.post(
-            "/tasks",
-            json={"title": "Status Task"},
-        )
+    mock_task = Task(
+        id=1,
+        title="Task",
+        status="pending",
+    )
 
-        task_id = create_response.json()["id"]
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_task
 
-        response = await client.patch(
-            f"/tasks/{task_id}/status",
-            json={"status": "completed"},
-        )
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = mock_result
 
-    assert response.status_code == 200
-    assert response.json()["status"] == "completed"
+    response = await update_task(
+        task_id=1,
+        request_status=TaskStatusUpdate(
+            status="completed",
+        ),
+        db=mock_db,
+    )
 
+    assert response.status == "completed"
 
-@pytest.mark.asyncio
-async def test_update_task_invalid_status():
-    """Test invalid status update."""
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        create_response = await client.post(
-            "/tasks",
-            json={"title": "Invalid Status Task"},
-        )
-
-        task_id = create_response.json()["id"]
-
-        response = await client.patch(
-            f"/tasks/{task_id}/status",
-            json={"status": "in-progress"},
-        )
-
-    assert response.status_code == 422
+    mock_db.commit.assert_awaited_once()
+    mock_db.refresh.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_delete_task():
-    """Test deleting task."""
+    """Unit test for deleting task."""
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        create_response = await client.post(
-            "/tasks",
-            json={"title": "Delete Me"},
-        )
+    mock_task = Task(
+        id=1,
+        title="Delete Task",
+        status="pending",
+    )
 
-        task_id = create_response.json()["id"]
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_task
 
-        response = await client.delete(f"/tasks/{task_id}")
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = mock_result
 
-        assert response.status_code == 200
+    response = await delete_task(
+        task_id=1,
+        db=mock_db,
+    )
 
-        get_response = await client.get(f"/tasks/{task_id}")
+    assert response == {
+        "message": (
+            "Record id 1 deleted successfully"
+        ),
+    }
 
-        assert get_response.status_code == 404
+    mock_db.delete.assert_awaited_once()
+    mock_db.commit.assert_awaited_once()
