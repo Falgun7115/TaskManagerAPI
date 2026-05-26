@@ -27,7 +27,9 @@ async def test_home():
 
     response = await home()
 
-    assert response == "Task manager API is running"
+    assert response == {
+        "message": "Task manager API is running",
+    }
 
 
 @pytest.mark.asyncio
