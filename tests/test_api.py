@@ -2,15 +2,15 @@ import os
 from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import HTTPException
-from app.main import (  
+from app.main import (
     create_task,
     delete_task,
     home,
     show_by_id,
     update_task,
 )
-from app.model import Task  
-from app.schema import (  
+from app.model import Task
+from app.schema import (
     TaskCreate,
     TaskStatusUpdate,
 )
