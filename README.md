@@ -42,7 +42,8 @@ A production-grade **Task Management REST API** built with **FastAPI** and **Pos
 | Container Registry | **AWS ECR**                   | Native integration with ECS, secure image storage          |
 | Cloud Hosting  | **AWS ECS Fargate**               | Serverless containers, no EC2 management needed            |
 | CI/CD          | **GitHub Actions**                | Automated lint, test, build, and deploy on every push      |
-| Testing        | **pytest + pytest-asyncio**       | Async-first test suite with isolated DB per test           |
+| Testing        | **pytest + pytest-asyncio**       | Supports asynchronous unit and integration testing with    |
+|                |                                   | isolated test execution                                    |
 | Linting        | **flake8**                        | Enforces code style and quality checks                     |
 
 ---
@@ -55,7 +56,7 @@ A production-grade **Task Management REST API** built with **FastAPI** and **Pos
 
 - **AWS RDS PostgreSQL**: Managed service with automated backups, Multi-AZ support, and seamless connectivity to ECS via VPC security groups — no manual database provisioning needed.
 
-- **NullPool in tests**: Tests use `NullPool` to avoid connection leaks between test cases — each test gets a fresh schema via `drop_all` / `create_all`.
+- **Unit testing with mocks**: The test suite uses pytest and pytest-asyncio along with AsyncMock and MagicMock to isolate FastAPI route logic from external systems. This keeps tests fast, deterministic, and independent of real database connections.
 
 ---
 
@@ -141,7 +142,7 @@ docker run -p 8000:8000 \
 
 ##  Running Tests
 
-Tests use a separate test database session and reset the schema before each test.
+The project uses asynchronous unit tests with mocked database sessions to isolate FastAPI route logic from external systems.
 
 ```bash
 # Make sure DATABASE_URL is set in your .env
@@ -150,18 +151,16 @@ pytest
 
 Expected output:
 ```
-collected 8 items
+collected 6 items
 
-tests/test_api.py::test_root                    PASSED
-tests/test_api.py::test_create_task             PASSED
-tests/test_api.py::test_get_all_tasks           PASSED
-tests/test_api.py::test_get_single_task         PASSED
-tests/test_api.py::test_get_task_not_found      PASSED
-tests/test_api.py::test_update_task_status      PASSED
-tests/test_api.py::test_update_task_invalid_status PASSED
-tests/test_api.py::test_delete_task             PASSED
+tests/test_api.py::test_home                  PASSED
+tests/test_api.py::test_create_task           PASSED
+tests/test_api.py::test_show_task_by_id       PASSED
+tests/test_api.py::test_show_task_not_found   PASSED
+tests/test_api.py::test_update_task_status    PASSED
+tests/test_api.py::test_delete_task           PASSED
 
-8 passed in X.XXs
+6 passed in X.XXs
 ```
 
 ---
