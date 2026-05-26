@@ -2,15 +2,14 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.model as model
 import app.schema as schema
 from app.database import engine, get_db
-import time 
-from fastapi import FastAPI, Request
+import time
 
 
 VALID_STATUSES = {"pending", "completed"}
@@ -31,6 +30,7 @@ app = FastAPI(
     title="Task Management API",
     lifespan=lifespan,
 )
+
 
 @app.middleware("http")
 async def log_requests(
